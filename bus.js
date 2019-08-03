@@ -1,11 +1,3 @@
-// const { BalanceAddedEvent, BalanceReducedEvent } = require('./events');
-// const { AddBalanceCommand, ReduceBalanceCommand } = require('./command');
-// const { AddBalanceCommandHandler, ReduceBalanceCommandHandler } = require('./command-handler');
-// const { UserBalanceProjection } = require('./projection');
-// const { UserBalance: UserBalanceModel } = require('./db');
-// const { UserBalanceRepo: UserBalanceESRepo } = require('./repo');
-// const { es } = require('./es');
-
 class Bus {
   constructor() {
     this.routes = new Map();
@@ -42,14 +34,3 @@ class Bus {
 }
 
 module.exports = Bus;
-
-// const bus = new Bus();
-//
-// const userBalanceESRepo = new UserBalanceESRepo(es)
-//
-//  bus.registerHandler(AddBalanceCommand, new AddBalanceCommandHandler(userBalanceESRepo).handle);
-//  bus.registerHandler(ReduceBalanceCommand, new ReduceBalanceCommandHandler(userBalanceESRepo).handle);
-//  bus.registerHandler(BalanceAddedEvent, new UserBalanceProjection(UserBalanceModel).handle);
-//  bus.registerHandler(BalanceReducedEvent, new UserBalanceProjection(UserBalanceModel).handle);
-
-// module.exports = bus;

@@ -36,10 +36,11 @@ class UserBalanceRepo {
 
         for (let i = 0; i < uncommitedChanges.length; i += 1) {
           const event = uncommitedChanges[i];
-          console.log('add event')
+          console.log('[eventstore] Adding event', event);
           stream.addEvent(event);
         }
-        console.log('going to commit')
+
+        console.log('[eventstore] Commiting events');
         stream.commit();
         userBalance.markChangesAsCommitted();
 

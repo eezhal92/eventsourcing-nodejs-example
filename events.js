@@ -7,19 +7,21 @@ exports.BALANCE_REDUCED = BALANCE_REDUCED;
 class DomainEvent {}
 
 class BalanceAddedEvent extends DomainEvent {
-  constructor(userID, amount) {
+  constructor(userID, amount, currentBalance) {
     super();
     this.name = BALANCE_ADDED;
     this.amount = amount;
+    this.currentBalance = currentBalance;
     this.userID = userID;
   }
 }
 
 class BalanceReducedEvent extends DomainEvent {
-  constructor(userID, amount) {
+  constructor(userID, amount, currentBalance) {
     super();
     this.name = BALANCE_REDUCED;
     this.amount = amount;
+    this.currentBalance = currentBalance;
     this.userID = userID;
   }
 }

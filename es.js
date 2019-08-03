@@ -24,7 +24,7 @@ function createEventStore({ bus }) {
     console.log('event class name:', e.constructor.name);
     console.log('event', e);
     console.log('-----');
-    // bus.publish(e);
+    bus.publish(e);
   });
 
   return eventStore;
