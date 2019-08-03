@@ -1,10 +1,8 @@
 const { UserBalanceAggregate } = require('./domain');
 
 class UserBalanceRepo {
-  constructor(es) {
+  constructor({ es }) {
     this.es = es;
-    this.findById = this.findById.bind(this)
-    this.save = this.save.bind(this)
   }
 
   findById (id) {
@@ -28,7 +26,6 @@ class UserBalanceRepo {
 
   save (userBalance) {
     return new Promise((resolve, reject) => {
-      console.log("hey save")
       this.es.getFromSnapshot({
         aggregateId: userBalance.userID,
         aggregate: 'userBalance'

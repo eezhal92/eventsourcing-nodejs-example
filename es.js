@@ -1,8 +1,7 @@
 const es = require('eventstore');
-const bus = require('./bus');
 
-function create() {
-  return es({
+function createEventStore({ bus }) {
+  const eventStore = es({
     type: 'mongodb',
     host: 'localhost',                          // optional
     port: 27017,                                // optional
@@ -18,27 +17,17 @@ function create() {
   // url: 'mongodb://user:pass@host:port/db?opts // optional
   // positionsCollectionName: 'positions' // optioanl, defaultly wont keep position
   });
-}
 
-const evtstore = create();
-evtstore.useEventPublisher(function(e) {
-  console.log('cb event publisher', e.constructor.name ,e);
-
-  // bus.publish(e);
-});
-
-exports.initEventStore = function initEventStore() {
-  return new Promise((resolve) => {
-    evtstore.on('connect', () => {
-      console.log('[eventstore] storage connected');
-    });
-
-    evtstore.init(() => {
-      console.log('[eventstore] initialized')
-      resolve();
-    });
+  eventStore.useEventPublisher((e) => {
+    console.log('-----');
+    console.log('useEventPublisher cb', e.constructor.name ,e);
+    console.log('event class name:', e.constructor.name);
+    console.log('event', e);
+    console.log('-----');
+    // bus.publish(e);
   });
+
+  return eventStore;
 }
 
-
-exports.es = evtstore;
+module.exports = createEventStore;

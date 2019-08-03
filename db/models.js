@@ -1,15 +1,6 @@
 const mongoose = require('mongoose');
 const { model, Schema } = mongoose;
 
-exports.connect = function connect() {
-  mongoose.connect('mongodb://localhost:27017/test_eventstore_db', {
-    useNewUrlParser: true
-  })
-    .then(() => {
-      console.log('[mongoose] connected to db');
-    });
-}
-
 const TransactionSchema = Schema({
   userID: { type: String, required: true },
   type: { type: String,  enum: ['deposit', 'redeem'] },
