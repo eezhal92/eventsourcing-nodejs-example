@@ -1,4 +1,5 @@
 const es = require('eventstore');
+const bus = require('./bus');
 
 function create() {
   return es({
@@ -19,4 +20,12 @@ function create() {
   });
 }
 
-module.exports = create;
+const evtstore = create();
+evtstore.useEventPublisher(function(e) {
+  console.log('cb event publisher', e.constructor.name ,e);
+
+  bus.publish(e);
+});
+
+
+module.exports = evtstore;

@@ -1,13 +1,21 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const createEventStore = require('./es');
+const morgan = require('morgan');
+
+const es = require('./es');
 const {
   connect: connectDB,
-  Transaction,
   User,
-  UserBalanceAggregate
-} = require('./db')
-const es = createEventStore();
+  UserBalance: UserBalanceReadModel,
+  createOrUpdateBalance,
+} = require('./db');
+const { BalanceAddedEvent, BalanceReducedEvent } = require('./events')
+const { AddBalanceCommand, ReduceBalanceCommand } = require('./command')
+
+const { UserBalanceRepo: UserBalanceESRepo } = require('./repo');
+const bus = require('./bus')
+
+const userBalanceESRepo = new UserBalanceESRepo(es);
 
 function initEventStore() {
   return new Promise((resolve) => {
@@ -18,22 +26,35 @@ function initEventStore() {
     es.init(() => {
       console.log('[eventstore] initialized')
       resolve();
-    })
-  })
+    });
+  });
 }
 
-function getEventName(type) {
+function createTransactionEvent({
+  type,
+  userID,
+  amount
+}) {
   if (type === 'redeem') {
-    return 'BalanceReduced';
+    return new BalanceReducedEvent(userID, amount);
   } else if (type === 'deposit') {
-    return 'BalanceAdded';
+    return new BalanceAddedEvent(userID, amount);
   }
 
   throw new Error(type + ': type is not supported');
 }
 
+function createTransactionCommand({ type, userID, amount }) {
+  if (type === 'redeem') {
+    return new ReduceBalanceCommand(userID, amount);
+  } else if (type === 'deposit') {
+    return new AddBalanceCommand(userID, amount);
+  }
+}
+
 const app = express();
 
+app.use(morgan())
 app.use(bodyParser.json());
 
 app.get('/users/:id', async (request, response) => {
@@ -47,25 +68,15 @@ app.get('/users/:id', async (request, response) => {
     });
   }
 
-  es.getFromSnapshot({
-    aggregateId: userID,
-    aggregate: 'userBalance',
-  }, function (error, snapshot, stream) {
-    const history = stream.events;
-    console.log('[eventstore] current userBalance snapshot:', snapshot);
-
-    const userBalanceAggregate = new UserBalanceAggregate(userID, userID);
-
-    userBalanceAggregate.loadSnapshot(snapshot);
-    userBalanceAggregate.loadFromHistory(history);
-
-    const balance = userBalanceAggregate.getSnap().balance;
-    const payload = {
-      ...user,
-      balance,
-    }
-    return response.json(payload);
-  })
+  Promise.all([
+    userBalanceESRepo.findById(userID),
+    UserBalanceReadModel.findOne({ user: userID })
+  ]).then(([aggregate, readModel]) => {
+      return response.json({
+        aggregate,
+        readModel
+      });
+    })
 })
 
 app.post(
@@ -92,46 +103,28 @@ app.post(
       });
     }
 
-    es.getFromSnapshot({
-      aggregateId: userID,
-      aggregate: 'userBalance'
-    }, async function (error, snapshot, stream) {
-      const history = stream.events;
-      const userBalanceAggregate = new UserBalanceAggregate(userID, userID);
-      userBalanceAggregate.loadSnapshot(snapshot);
-      userBalanceAggregate.loadFromHistory(history);
+    const userBalance = await userBalanceESRepo.findById(userID);
 
+    if (type === 'redeem' && userBalance.balance < amount) {
+      return response.status(400).json({ message: 'Balance is not enough' });
+    }
 
-      if (type === 'redeem' && userBalanceAggregate.getSnap().balance < amount) {
-        return response.status(400).json({ message: 'Balance is not enough' });
-      }
+    userBalance.apply(createTransactionEvent({
+      type,
+      userID,
+      amount
+    }), true);
 
-      stream.addEvent({
-        name: getEventName(type),
-        amount,
-        userID,
-      });
-      stream.commit();
+    await userBalanceESRepo.save(userBalance);
 
-      await Transaction.create({ userID, type, amount });
-
-      console.log('[eventstore] current userBalance snapshot:', snapshot);
-
-      const HISTORY_LIMIT = 5;
-      if (history.length > HISTORY_LIMIT) {
-        es.createSnapshot({
-          aggregateId: userID,
-          aggregate: 'userBalance',          // optional
-          data: userBalanceAggregate.getSnap(),
-          revision: stream.lastRevision,
-          version: 1 // optional
-        }, function(err) {
-          console.log(new Date() + ' [eventstore]: snapshot created!')
-        });
-      }
-
-      return response.status(201).json({ message: 'Transaction is created' });
+    // update the read model
+    // let's say we use projection to do it
+    await createOrUpdateBalance({
+      user: userBalance.userID,
+      balance: userBalance.balance,
     });
+
+    return response.status(201).json({ message: 'Transaction is created' });
   }
 )
 
@@ -141,6 +134,7 @@ function listenHttp() {
   })
 }
 
+// Setup and run the app
 Promise.resolve()
   .then(connectDB)
   .then(initEventStore)

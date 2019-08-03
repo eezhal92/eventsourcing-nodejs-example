@@ -1,49 +1,13 @@
 const mongoose = require('mongoose');
-const { model, Types, Schema } = mongoose;
+const { model, Schema } = mongoose;
 
-exports.UserBalanceAggregate = class UserBalanceAggregate {
-  constructor(aggregateId, userID = null) {
-    this.aggregateId = aggregateId;
-    this.userID = userID;
-    this.initialBalance = 0;
-  }
-
-  /**
-   * @param  {object|null} snapshot
-   * @param  {object} snapshot.data
-   * @param  {string} snap.data.userID
-   * @param  {number} snap.data.balance
-   */
-  loadSnapshot(snapshot) {
-    if (!snapshot) {
-      console.log('snapshot is null')
-      return;
-    }
-    this.userID = snapshot.data.userID;
-    this.initialBalance = snapshot.data.balance;
-  }
-
-  loadFromHistory(history) {
-    this.history = history;
-  }
-
-  getSnap() {
-    return {
-      userID: this.userID,
-      balance: this._getBalance(),
-    }
-  }
-
-  _getBalance() {
-    return this.history.reduce((acc, item) => {
-      console.log(item)
-      if (item.payload.name === 'BalanceAdded') {
-        return acc + item.payload.amount;
-      } else if (item.payload.name === 'BalanceReduced') {
-        return acc - item.payload.amount;
-      }
-    }, this.initialBalance)
-  }
+exports.connect = function connect() {
+  mongoose.connect('mongodb://localhost:27017/test_eventstore_db', {
+    useNewUrlParser: true
+  })
+    .then(() => {
+      console.log('[mongoose] connected to db');
+    });
 }
 
 const TransactionSchema = Schema({
@@ -55,25 +19,58 @@ const TransactionSchema = Schema({
 
 exports.Transaction = model('Transaction', TransactionSchema);
 
-exports.connect = function connect() {
-  mongoose.connect('mongodb://localhost:27017/test_eventstore_db', {
-    useNewUrlParser: true
-  })
-    .then(() => {
-      console.log('[mongoose] connected to db');
-    });
+const UserBalanceSchema = Schema({
+  user: { type: String, required: true },
+  balance: { type: Number, required: true }
+});
+
+const UserBalance = model('UserBalance', UserBalanceSchema);
+
+exports.UserBalance = UserBalance;
+
+/**
+ * @param {object} payload
+ * @param {string} payload.user
+ * @param {number} payload.balance
+ */
+async function createOrUpdateBalance(payload) {
+  const userBalance = await UserBalance.findOne({ user: payload.user });
+
+  if (!userBalance) {
+    return UserBalance.create(payload);
+  }
+
+  userBalance.balance = payload.balance;
+
+  return userBalance.save();
 }
 
-// in memory store implementation
-exports.User = class User {
-  static findById(userId) {
-    const users = [
-     { _id: 'user-1', name: 'John Doe' },
-     { _id: 'user-2', name: 'Alex Garett' },
-    ];
+exports.createOrUpdateBalance = createOrUpdateBalance;
 
-    const foundUser = users.find(user => user._id === userId);
+// in memory store implementation
+class User {
+  static create(name) {
+    const id = Math.random();
+    User.users.push({
+      _id: id,
+      name,
+    });
+
+    return UserBalance.create({
+      user: id,
+      balance: 0,
+    });
+  }
+  static findById(userId) {
+    const foundUser = User.users.find(user => user._id === userId);
 
     return Promise.resolve(foundUser);
   }
 }
+
+User.users = [
+  { _id: 'user-1', name: 'John Doe' },
+  { _id: 'user-2', name: 'Alex Garett' },
+];
+
+exports.User = User;
