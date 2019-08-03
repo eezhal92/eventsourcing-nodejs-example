@@ -24,8 +24,21 @@ const evtstore = create();
 evtstore.useEventPublisher(function(e) {
   console.log('cb event publisher', e.constructor.name ,e);
 
-  bus.publish(e);
+  // bus.publish(e);
 });
 
+exports.initEventStore = function initEventStore() {
+  return new Promise((resolve) => {
+    evtstore.on('connect', () => {
+      console.log('[eventstore] storage connected');
+    });
 
-module.exports = evtstore;
+    evtstore.init(() => {
+      console.log('[eventstore] initialized')
+      resolve();
+    });
+  });
+}
+
+
+exports.es = evtstore;

@@ -2,7 +2,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
 
-const es = require('./es');
 const {
   connect: connectDB,
   User,
@@ -12,23 +11,10 @@ const {
 const { BalanceAddedEvent, BalanceReducedEvent } = require('./events')
 const { AddBalanceCommand, ReduceBalanceCommand } = require('./command')
 
-const { UserBalanceRepo: UserBalanceESRepo } = require('./repo');
+const { userBalanceRepo: userBalanceESRepo } = require('./repo');
 const bus = require('./bus')
 
-const userBalanceESRepo = new UserBalanceESRepo(es);
-
-function initEventStore() {
-  return new Promise((resolve) => {
-    es.on('connect', () => {
-      console.log('[eventstore] storage connected');
-    });
-
-    es.init(() => {
-      console.log('[eventstore] initialized')
-      resolve();
-    });
-  });
-}
+const { initEventStore } = require('./es');
 
 function createTransactionEvent({
   type,
@@ -104,25 +90,17 @@ app.post(
     }
 
     const userBalance = await userBalanceESRepo.findById(userID);
+    const command = createTransactionCommand({
+      type,
+      userID,
+      amount,
+    });
 
     if (type === 'redeem' && userBalance.balance < amount) {
       return response.status(400).json({ message: 'Balance is not enough' });
     }
 
-    userBalance.apply(createTransactionEvent({
-      type,
-      userID,
-      amount
-    }), true);
-
-    await userBalanceESRepo.save(userBalance);
-
-    // update the read model
-    // let's say we use projection to do it
-    await createOrUpdateBalance({
-      user: userBalance.userID,
-      balance: userBalance.balance,
-    });
+    bus.send(command);
 
     return response.status(201).json({ message: 'Transaction is created' });
   }

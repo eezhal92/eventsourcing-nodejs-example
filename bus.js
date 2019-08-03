@@ -1,8 +1,10 @@
 const { BalanceAddedEvent, BalanceReducedEvent } = require('./events');
-// const { AddBalanceCommand, ReduceBalanceCommand } = require('./command');
-// const { AddBalanceCommandHandler, ReduceBalanceCommandHandler } = require('./command-handler');
+const { AddBalanceCommand, ReduceBalanceCommand } = require('./command');
+const { AddBalanceCommandHandler, ReduceBalanceCommandHandler } = require('./command-handler');
 const { UserBalanceProjection } = require('./projection');
 const { UserBalance: UserBalanceModel } = require('./db');
+const { UserBalanceRepo: UserBalanceESRepo } = require('./repo');
+const { es } = require('./es');
 
 class Bus {
   constructor() {
@@ -19,6 +21,7 @@ class Bus {
   }
 
   send(command) {
+    console.log('send command', command)
     const commandClassName = command.constructor.name
 
     if (this.routes.has(commandClassName)) {
@@ -40,9 +43,11 @@ class Bus {
 
 const bus = new Bus();
 
-// bus.registerHandler(AddBalanceCommand, new AddBalanceCommandHandler().handle);
-// bus.registerHandler(ReduceBalanceCommand, new ReduceBalanceCommandHandler().handle);
-bus.registerHandler(BalanceAddedEvent, new UserBalanceProjection(UserBalanceModel).handle);
-bus.registerHandler(BalanceReducedEvent, new UserBalanceProjection(UserBalanceModel).handle);
+const userBalanceESRepo = new UserBalanceESRepo(es)
+
+ bus.registerHandler(AddBalanceCommand, new AddBalanceCommandHandler(userBalanceESRepo).handle);
+ bus.registerHandler(ReduceBalanceCommand, new ReduceBalanceCommandHandler(userBalanceESRepo).handle);
+ bus.registerHandler(BalanceAddedEvent, new UserBalanceProjection(UserBalanceModel).handle);
+ bus.registerHandler(BalanceReducedEvent, new UserBalanceProjection(UserBalanceModel).handle);
 
 module.exports = bus;
